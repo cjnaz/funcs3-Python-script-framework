@@ -25,11 +25,6 @@ def main():
 
     WANfile = progdir + '/' + getcfg('WanIpFile')
 
-# code sample for getting out past the Intel firewall
-##    proxies = { "http": "http://proxy-us.intel.com:912",
-##                "https": "http://proxy-us.intel.com:912"}
-##    WANip = requests.get('https://ipapi.co/ip/', proxies=proxies).text
-
     if not os.path.exists(WANfile):
         with open(WANfile, 'w') as ofile:
             ofile.write (WANip)
