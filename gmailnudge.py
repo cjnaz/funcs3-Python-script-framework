@@ -6,6 +6,7 @@ Set up a filter in GMail to delete these messages.
 """
 
 # Revision history
+# 190319  Added NudgeText config param
 # 180521  New
 
 import sys
@@ -17,8 +18,8 @@ setuplogging()
 def main():
     loadconfig(cfgfile = 'gmailnudge.cfg')
 
-    # Set up a GMail rule to delete messages with subject = GmailNudge
-    snd_email (subj='GmailNudge', body='gobbledygook', to='EmailTo')
+    # Set up GMail rule to delete messages with subject = the NudgeText in config file.
+    snd_email (subj=getcfg('NudgeText'), body="Don't care", to='EmailTo')
 
     logging.info ('Nudge message sent')
 

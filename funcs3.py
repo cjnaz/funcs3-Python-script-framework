@@ -19,7 +19,8 @@ Globals:
 """
 
 # Revision history:
-#    180524  New
+#   190319  Added email port selection and SSL/TLS support
+#   180520  New
 
 
 import time
@@ -227,18 +228,22 @@ def snd_email(subj='', body='', filename='', to=''):
     body     -- is a string message to be sent.
     filename -- is a string full path to the file to be sent.
         Default path is the program directory.
-        Absolute and relative paths accepted
+        Absolute and relative paths accepted.
     to       -- to whom to send the message
         to may be a single email address (contains an '@') string 
         or it is assumed to be a cfg keyword with list of eamil addresses
 
-    cfg EmailFrom and EmailServer are required in the config file
+    cfg EmailFrom, EmailServer, and EmailServerPort are required in the config file
+        EmailServerPort must be one of the following:
+            P25:  SMTP to port 25 without any encryption
+            P465: SMTP_SSL to port 465
+            P587: SMTP to port 587 without any encryption
+            P587TLS:  SMTP to port 587 and with TLS encryption
     cfg EmailUser and EmailPass are optional in the config file.
         Needed if the server requires crudentials.
     cfg DontEmail is optional, and if == True no email is sent.
         Also blocks sndNotifs.  Useful for debug.
-
-    NOTE:  Likely not correctly implemented for SSL mail sending.
+    cfg EmailVerbose = True enables the emailer debug level.
     """
 
     if getcfg('DontEmail', default='False') == 'True':
@@ -266,16 +271,27 @@ def snd_email(subj='', body='', filename='', to=''):
         msg['From'] = getcfg('EmailFrom')
         msg['To'] = ", ".join(To)
 
-        s = smtplib.SMTP(getcfg('EmailServer'))
+        server = getcfg('EmailServer')
+        port = getcfg('EmailServerPort')
+        if port == "P25":
+            s = smtplib.SMTP(server, 25)
+        elif port == "P465":
+            s = smtplib.SMTP_SSL(server, 465)
+        elif port == "P587":
+            s = smtplib.SMTP(server, 587)
+        elif port == "P587TLS":
+            s = smtplib.SMTP(server, 587)
+            s.starttls()
 
         if 'EmailUser' in cfg:
             s.login (getcfg('EmailUser'), getcfg('EmailPass'))
-        # s.set_debuglevel(1)
+        if getcfg("EmailVerbose", default="False") == 'True':
+            s.set_debuglevel(1)
         s.sendmail(getcfg('EmailFrom'), To, msg.as_string())
         s.quit()
 
         logging.debug ("Sent message <{}>".format(subj))
-    except Exception, e:
+    except Exception as e:
         logging.warning ("snd_email:  Send failed for <{}>: <{}>".format(subj, e))
         return -1
     return 0

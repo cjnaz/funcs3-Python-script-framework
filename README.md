@@ -1,7 +1,6 @@
 # funcs3 with gmailnudge and wanipcheck demo stripts
 
-funcs3 is a collection of functions for building basic Python tools and scripts.  This code was developed using Python 2.7, and 
-has not be tested/debugged for Python 3.
+funcs3 is a collection of functions for building basic Python tools and scripts.  This code was developed using Python 2.7, and tested/debugged for Python 3.
 
 Tools using the loadconfig function will need to have a config file defined.  Three config files are included in this repo, 
 but they must be adjusted by the user for valid email credentials and email addresses.
@@ -56,7 +55,7 @@ jammed and used within the script, `JAM()` must be called periodically, and acce
 than assigning the dictionary value to a local variable and then only using the local variable.
 
 ### Email and text message sending
-`snd_email` and `snd_notif` provide nice basic wrappers around sendmail and use setup info from the config file.  The send-to targets can be multiple
+`snd_email` and `snd_notif` provide nice basic wrappers around Python's smtplib and use setup info from the config file.  The send-to targets can be multiple
 email addresses by listing more than one with white space separation in the config file.  
 
 `snd_notif` is expected to be used with mobile provider 
@@ -65,8 +64,9 @@ out when some circumstance comes up.
 Suggested application:  Write a script that checks status on critical processes on your server, and if anything
 is wrong then send out a notification.
 
-`snd_email` supports sending a message built up by the script code as a python string, or by pointing to a file.  An enhancement needed is 
-cleanly working with both SSL and non-SSL SMTP servers.  The current implementation is non-SSL.
+`snd_email` supports sending a message built up by the script code as a python string, or by pointing to a file.  
+
+The `EmailServer` and `EmailServerPort` settings in the config file support port 25 (plain text), port 465 (SSL), port 587 with plain text, and port 587 with TLS.
 
 ### Lock file
 For scripts that may take a long time to run and are run by CRON, the possibility exists that a job is still running when CRON wants to 
@@ -75,5 +75,6 @@ run it again, which may create a real mess.  The lock file mechanism is used in 
 
 ## Revision history
 
+- 190319  Added email TLS support.  
 - 180524  New.  First github posting
 

@@ -5,6 +5,7 @@ Intended to be run every hour by a cron job:
 """
 
 # Revision history
+# 190319  Genericized EmailTo, fixed Python 3x compatibility.
 # 180521  New
 
 import requests
@@ -19,7 +20,7 @@ def main():
 
     try:
         WANip = requests.get('https://ipapi.co/ip/').text
-    except Exception, e:
+    except Exception as e:
         logging.error ("Getting the WAN IP failed: <{}>".format(e))
         exit ()
 
@@ -38,7 +39,7 @@ def main():
         message = "Prior WAN IP: <{}>. Current WAN IP: <{}>".format (SavedWANip, WANip)
         subject = "NOTICE:  HOME WAN IP CHANGED"
         snd_notif (subj=subject, msg=message)     # ERROR CHECK THESE
-        snd_email (subj=subject, body=message, to='EmailChris')
+        snd_email (subj=subject, body=message, to='EmailTo')
 
         with open(WANfile, 'w') as ofile:
             ofile.write (WANip)
