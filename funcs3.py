@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-"""Script Funcs v3
-A random collection of support funcs for simplifying writing basic tool scripts.
+"""Script Funcs (version 3)
+A collection of support funcs for simplifying writing basic tool scripts.
 
 Functions:
-    setuplogging - Set up default logger 
-    loadconfig, JAM, getcfg - Config file handlers
-    requestlock, releaselock - Cross tool/process safety handshake
-    snd_notif, snd_email - Send text message and email messages
+    setuplogging             - Set up default logger 
+    loadconfig, JAM, getcfg  - Config file handlers
+    requestlock, releaselock - Cross-tool/process safety handshake
+    snd_notif, snd_email     - Send text message and email messages
 
     Import this module from the main script as follows:
         from funcs3 import *
@@ -18,16 +18,28 @@ Globals:
         from a different pwd, such as when running from cron.
 """
 
-# Revision history:
-#   190319  Added email port selection and SSL/TLS support
-#   180520  New
+__func3_version__ = "v0.3 200426"
 
+#==========================================================
+#
+#  Chris Nelson, January 2019-2020
+#
+# 200426 v0.3  Updated for Python 3. Python 2 unsupported.  Using tempfile module.
+# 190319 v0.2  Added email port selection and SSL/TLS support
+# 180520 v0.1  New
+#
+# Changes pending
+#   
+#==========================================================
 
+import sys
 import time
 import os.path
+import io
 import smtplib
 from email.mime.text import MIMEText
 import logging
+import tempfile
 import __main__
 
 
@@ -76,10 +88,10 @@ def loadconfig(cfgfile= 'config.cfg', cfgloglevel= 30):
 
     if not os.path.exists(config):
         logging.error("loadConfg:  Config file <{}> does not exist.  Aborting.".format(config))
-        exit()
+        sys.exit(1)
     
     logging.info ('Loading {}'.format(config))
-    with open(config) as ifile:
+    with io.open(config, encoding='utf8') as ifile:
         for line in ifile:
             line = line[0:line.find('#')].lstrip().rstrip() # throw away comment and any leading & trailing whitespace
             if len(line) > 0:
@@ -109,7 +121,7 @@ def JAM():
     """
     
     if os.path.exists(progdir + '/JAM'):
-        with open(progdir + '/JAM') as ifile:
+        with io.open(progdir + '/JAM', encoding='utf8') as ifile:
             for line in ifile:
                 line = line[0:line.find('#')].lstrip().rstrip() # throw away comment and any leading & trailing whitespace
                 if len(line) > 0:
@@ -148,63 +160,58 @@ def getcfg(param, default=None):
     except:
         if default != None:  return default
         logging.error ("Config error:  <{}> missing or invalid value.  Aborting.".format(param))
-        exit()
+        sys.exit(1)
 
 
-def requestlock(caller):
+LOCKFILE_DEFAULT = "funcs3_LOCK"
+def requestlock(caller, lockfile=LOCKFILE_DEFAULT):
     """Lock file request.
-    The lock file is /tmp/LOCK.
-
     Param:
-    caller -- Info written to the lock file and displayed in any error messages.  
-
-    Note that on Windows /tmp is expected on the same drive as the progdir,
-    which may not be C:
+    caller   -- Info written to the lock file and displayed in any error messages.
+    lockfile -- Various lock files may be used simultaneously.
     """
-    if not os.path.exists("/tmp"):      
-        logging.error ("requestlock:  /tmp directory does not exist.  Create it manually(?).  Aborting.")
-        exit()
-        
+    lock_file = os.path.join(tempfile.gettempdir(), lockfile)
+
     for xx in range(5):
-        if os.path.exists("/tmp/LOCK"):
-            with open("/tmp/LOCK") as ifile:
+        if os.path.exists(lock_file):
+            with io.open(lock_file, encoding='utf8') as ifile:
                 lockedBy = ifile.read()
-                logging.warning ("{}.  Waiting a sec.".format(lockedBy))
+                logging.info (f"Lock file already exists.  {lockedBy}  Waiting a sec.")
             time.sleep (1)
         else:  
-            with open("/tmp/LOCK", 'w') as ofile:
-                ofile.write("Locked by {} at {}".format(caller, time.asctime(time.localtime())))
-                logging.debug ("LOCKed by {} at {}.".format(caller, time.asctime(time.localtime())))
+            with io.open(lock_file, 'w', encoding='utf8') as ofile:
+                ofile.write(f"Locked by <{caller}> at {time.asctime(time.localtime())}.")
+                logging.debug (f"LOCKed by <{caller}> at {time.asctime(time.localtime())}.")
             return 0
-    logging.warning ("Timed out waiting for LOCK file to be cleared.  {}".format(lockedBy))
+    logging.warning (f"Timed out waiting for lock file <{lock_file}> file to be cleared.  {lockedBy}")
     return -1
         
 
-def releaselock(caller):
+def releaselock(lockfile=LOCKFILE_DEFAULT):
     """Lock file release.
     Any code can release a lock, even if that code didn't request the lock.
     Only the requester should issue the releaselock.
 
     Param:
-    caller -- Used only for logging info.
+    lockfile -- Remove the specified lock file.
     """
-    if os.path.exists("/tmp/LOCK"):
-        with open("/tmp/LOCK") as ifile:
-            lockedBy = ifile.read()
-            logging.debug ("Caller {} removed lock file requested by {}.".format(caller, lockedBy))
-        os.remove("/tmp/LOCK")
+    lock_file = os.path.join(tempfile.gettempdir(), lockfile)
+    if os.path.exists(lock_file):
+        logging.debug(f"Lock file removed: <{lock_file}>")
+        os.remove(lock_file)
         return 0
     else:
-        logging.warning ("<{}> attempted to remove /tmp/LOCK but the file does not exist.".format(caller))
+        logging.warning(f"Attempted to remove lock file <{lock_file}> but the file does not exist.")
         return -1
-        
 
-def snd_notif(subj='Notification message', msg=''):
+
+def snd_notif(subj='Notification message', msg='', log=False):
     """Send a text message using the cfg NotifList from the config file.
 
     Params:
     subj -- Subject text string
     msg  -- Message text string
+    log  -- If True, elevates log level from DEBUG to WARNING to force logging
 
     cfg NotifList is required in the config file.
     cfg DontNotif is optional, and if == True no text message is sent.
@@ -216,11 +223,14 @@ def snd_notif(subj='Notification message', msg=''):
         logging.warning ("sndNotif:  DontNotif==True - Message NOT sent <{}> <{}>".format(subj, msg))
     else:
         xx = snd_email (subj=subj, body=msg, to='NotifList')
-        logging.warning ("Notification message sent <{}> <{}>".format(subj, msg))
+        if log:
+            logging.warning ("Notification message sent <{}> <{}>".format(subj, msg))
+        else:
+            logging.debug ("Notification message sent <{}> <{}>".format(subj, msg))
     return xx
 
 
-def snd_email(subj='', body='', filename='', to=''):
+def snd_email(subj='', body='', filename='', to='', log=False):
     """Send an email message using email account info from the config file.
     Either body or fileName must be passed.  body takes precedence over fileName.
 
@@ -253,10 +263,10 @@ def snd_email(subj='', body='', filename='', to=''):
     if not (body == ''):
         m = body
     elif os.path.exists(filename):
-        fp = open(filename, 'rb')
+        fp = io.open(filename, encoding='utf8')
         m = fp.read()
         fp.close()
-    else: logging.error ("snd_email:  No <body> and can't find file <{}>.".format(filename)); exit()
+    else: logging.error ("snd_email:  No <body> and can't find file <{}>.".format(filename)); sys.exit(1)
 
     m += '\n(sent {})'.format(time.asctime(time.localtime()))
 
@@ -264,7 +274,7 @@ def snd_email(subj='', body='', filename='', to=''):
           To = to.split()           # To must be a list
     else: To = getcfg(to).split()
     if not (len(To) > 0):
-        logging.error ("snd_email:  <to> list is invalid: <{}>.".format(to)); exit()
+        logging.error ("snd_email:  <to> list is invalid: <{}>.".format(to)); sys.exit(1)
     try:
         msg = MIMEText(m)
         msg['Subject'] = subj
@@ -290,7 +300,10 @@ def snd_email(subj='', body='', filename='', to=''):
         s.sendmail(getcfg('EmailFrom'), To, msg.as_string())
         s.quit()
 
-        logging.debug ("Sent message <{}>".format(subj))
+        if log:
+            logging.warning ("Sent message <{}>".format(subj))
+        else:
+            logging.debug ("Sent message <{}>".format(subj))
     except Exception as e:
         logging.warning ("snd_email:  Send failed for <{}>: <{}>".format(subj, e))
         return -1
@@ -302,41 +315,42 @@ if __name__ == '__main__':
     setuplogging(logfile= 'testlogfile.txt')
     loadconfig (cfgfile='testcfg.cfg', cfgloglevel=10)
 
-    # Tests for loadConfig, getcfg
-##    for key in cfg:
-##        print "{:>15} = {}".format(key, cfg[key])
-##
-##    print "Testing getcfg - Not in cfg with default: <{}>".format(getcfg('NotInCfg', '--default--'))
-##    print "Testing getcfg - Not in cfg with no default... will cause an exit()"
-##    getcfg('NotInCfg-NoDef')
+    # # Tests for loadConfig, getcfg
+    # for key in cfg:
+    #     print ("{:>15} = {}".format(key, cfg[key]))
+
+    # print ("Testing getcfg - Not in cfg with default: <{}>".format(getcfg('NotInCfg', '--default--')))
+    # print ("Testing getcfg - Not in cfg with no default... will cause an exit()")
+    # getcfg('NotInCfg-NoDef')
 
 
-    # Tests for JAM
-##    with open("JAM", 'w') as ofile:
-##        ofile.write("JammedInt 1234\n")
-##        ofile.write("JammedStr This is a text string # with a comment on the end\n")
-##        ofile.write("LoggingLevel 10\n")
-##    JAM()
-##    print "JammedInt = <{}>, {}".format(getcfg('JammedInt'), type(getcfg('JammedInt')))
-##    print "JammedStr = <{}>, {}".format(getcfg('JammedStr'), type(getcfg('JammedStr')))
+    # # Tests for JAM
+    # with io.open("JAM", 'w') as ofile:
+    #     ofile.write("JammedInt 1234\n")
+    #     ofile.write("JammedStr This is a text string # with a comment on the end\n")
+    #     ofile.write("LoggingLevel 10\n")
+    # JAM()
+    # print ("JammedInt = <{}>, {}".format(getcfg('JammedInt'), type(getcfg('JammedInt'))))
+    # print ("JammedStr = <{}>, {}".format(getcfg('JammedStr'), type(getcfg('JammedStr'))))
 
 
-    # Tests for sndNotif and snd_email
-##    cfg['DontEmail'] = 'True'
-##    cfg['DontNotif'] = 'True'
-##    snd_email (subj="Test email with body", body="To be, or not to be...", to="xyz@gmail.com")
-##    snd_email (subj="Test email with filename", filename="testfile.txt", to="EmailTo")
-##    snd_notif (subj="This is a test subject", msg='This is the message body')
+    # # Tests for sndNotif and snd_email
+    # cfg['DontEmail'] = 'True'
+    # cfg['DontNotif'] = 'True'
+    # snd_email (subj="Test email with body", body="To be, or not to be...", to="EmailTo")
+    # snd_email (subj="Test email with body", body="To be, or not to be...", to="xyz@gmail.com")
+    # snd_email (subj="Test email with filename JAMed", filename="JAMed", to="EmailTo")
+    # snd_email (subj="Test email with filename LICENSE.txt", filename="LICENSE.txt", to="EmailTo", log=True)
+    # snd_notif (subj="This is a test subject", msg='This is the message body')
+    # snd_notif (subj="This is another test subject", msg='This is another message body', log=True)
 
 
-    # Tests for lock files
-##    stat = requestlock ("try1")
-##    print "got back from requestLock.  stat = {}".format(stat)
-##    stat = requestlock ("try2")
-##    print "got back from 2nd requestLock.  stat = {}".format(stat)
-##    stat = releaselock ("try1")
-##    print "got back from releaseLock.  stat = {}".format(stat)
-##    stat = releaselock ("try2")
-##    print "got back from 2nd releaseLock.  stat = {}".format(stat)
-
-    
+    # # Tests for lock files
+    # stat = requestlock ("try1")
+    # print ("got back from requestLock.  stat = {}".format(stat))
+    # stat = requestlock ("try2")
+    # print ("got back from 2nd requestLock.  stat = {}".format(stat))
+    # stat = releaselock ()
+    # print ("got back from releaseLock.  stat = {}".format(stat))
+    # stat = releaselock ()
+    # print ("got back from 2nd releaseLock.  stat = {}".format(stat))

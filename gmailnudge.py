@@ -4,10 +4,18 @@ Typically run every 5 minutes by a cron job:
  */5  *  *  *  *  cd /<path to script dir>/ && ./gmailnudge.py >> log.txt 2>&1
 Set up a filter in GMail to delete these messages.
 """
+__version__ = "v0.2 200426"
 
-# Revision history
-# 190319  Added NudgeText config param
-# 180521  New
+#==========================================================
+#
+#  Chris Nelson, January 2018-2020
+#
+# 190319 v0.2  Added NudgeText config param
+# 180521 v0.1  New
+#
+# Changes pending
+#   
+#==========================================================
 
 import sys
 sys.path.append('../funcs3')    # Useful if funcs3 is placed elsewhere
