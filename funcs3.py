@@ -1,5 +1,5 @@
-#!/usr/bin/env python
-"""Script Funcs (version 3)
+#!/usr/bin/env python3
+"""Funcs (version 3)
 A collection of support funcs for simplifying writing basic tool scripts.
 
 Functions:
@@ -18,15 +18,18 @@ Globals:
         from a different pwd, such as when running from cron.
 """
 
-__func3_version__ = "v0.3 200426"
+__func3_version__ = "V0.4 201028"
 
 #==========================================================
 #
-#  Chris Nelson, January 2019-2020
+#  Chris Nelson, 2018-2020
 #
-# 200426 v0.3  Updated for Python 3. Python 2 unsupported.  Using tempfile module.
-# 190319 v0.2  Added email port selection and SSL/TLS support
-# 180520 v0.1  New
+# V0.4 201028  Reworked loadconfig & JAM with re to support ':' and '=' delimiters.
+#   loadconfig may be re-called and will re-load if the config file mod time has changed.
+#   Added '/' to progdir.  Requires Python3.
+# V0.3 200426  Updated for Python 3. Python 2 unsupported.  Using tempfile module.
+# V0.2 190319  Added email port selection and SSL/TLS support
+# V0.1 180520  New
 #
 # Changes pending
 #   
@@ -40,13 +43,14 @@ import smtplib
 from email.mime.text import MIMEText
 import logging
 import tempfile
+import re
 import __main__
 
 
 ### Project globals
 cfg = {}
-progdir = os.path.dirname(os.path.realpath(__main__.__file__))
-
+progdir = os.path.dirname(os.path.realpath(__main__.__file__)) + "/"
+config_epoch = 0
 
 def setuplogging (logfile= 'log.txt'):
     """Set up logging.
@@ -59,12 +63,12 @@ def setuplogging (logfile= 'log.txt'):
     """
 
     if os.path.isabs(logfile):  logpath = logfile
-    else:                       logpath = progdir + '/' + logfile
+    else:                       logpath = progdir + logfile
 
     logging.basicConfig(filename=logpath,
         format='%(asctime)s/%(module)s/%(funcName)s/%(levelname)s:  %(message)s')
 
-
+cfgline = re.compile(r"([\w]+)[\s=:]+(.*)")
 def loadconfig(cfgfile= 'config.cfg', cfgloglevel= 30):
     """Read config file into dictionary cfg.
 
@@ -79,15 +83,24 @@ def loadconfig(cfgfile= 'config.cfg', cfgloglevel= 30):
     Logging module levels: 10:DEBUG, 20:INFO, 30:WARNING, 40:ERROR, 50:CRITICAL
     Optional LoggingLevel in the config file will set the logging level after
     the config has been loaded.  The default logging level is 30:WARNING.
+
+    loadconfig may be called periodically by the main script.  loadconfig detects
+    if the config file modification time has changed and reloads the file, as needed.
     """
+    global config_epoch
+    xx = os.path.getmtime(cfgfile)
+    if config_epoch == xx:
+        logging.debug("loadconfig reload skipped")
+        return
+    config_epoch = xx
 
     logging.getLogger().setLevel(cfgloglevel)
 
     if os.path.isabs(cfgfile):  config = cfgfile
-    else:                       config = progdir + '/' + cfgfile
+    else:                       config = progdir + cfgfile
 
     if not os.path.exists(config):
-        logging.error("loadConfg:  Config file <{}> does not exist.  Aborting.".format(config))
+        logging.error("loadconfig:  Config file <{}> does not exist.  Aborting.".format(config))
         sys.exit(1)
     
     logging.info ('Loading {}'.format(config))
@@ -95,20 +108,20 @@ def loadconfig(cfgfile= 'config.cfg', cfgloglevel= 30):
         for line in ifile:
             line = line[0:line.find('#')].lstrip().rstrip() # throw away comment and any leading & trailing whitespace
             if len(line) > 0:
-                xx = line.strip().split(None, 1)        # parse to 2-element list
-                if len(xx) == 2:
+                out = cfgline.match(line)
+                if out:
                     try:
-                        cfg[xx[0]] = int(xx[1])         # append int to dict
+                        cfg[out.group(1)] = int(out.group(2))   # append int to dict
                     except:
-                        cfg[xx[0]] = xx[1]              # append string to dict
-                    logging.debug ("Loaded {} = {}".format(xx[0], xx[1]))
-                else: logging.warning ("loadConfig error on line {}.  Line skipped.".format(xx))
+                        cfg[out.group(1)] = out.group(2)        # append string to dict
+                    logging.debug ("Loaded {} = {}".format(out.group(1), cfg[out.group(1)]))
+                else: logging.warning ("loadconfig error on line {}.  Line skipped.".format(line))
 
     if 'LoggingLevel' in cfg:                           # LoggingLevel from config file sets the following log level
         ll = cfg['LoggingLevel']
         logging.info ('Logging level set to <{}>'.format(ll))
         logging.getLogger().setLevel(ll)
-    else:  logging.getLogger().setLevel(30)             # INFO level is default
+    # else:  logging.getLogger().setLevel(30)             # INFO level is default
 
 
 def JAM():
@@ -120,27 +133,27 @@ def JAM():
     The logging level may be changed by setting/changing LoggingLevel.
     """
     
-    if os.path.exists(progdir + '/JAM'):
-        with io.open(progdir + '/JAM', encoding='utf8') as ifile:
+    if os.path.exists(progdir + 'JAM'):
+        with io.open(progdir + 'JAM', encoding='utf8') as ifile:
             for line in ifile:
                 line = line[0:line.find('#')].lstrip().rstrip() # throw away comment and any leading & trailing whitespace
                 if len(line) > 0:
-                    xx = line.strip().split(None, 1)    # parse to 2-element list
-                    if len(xx) == 2:
+                    out = cfgline.match(line)
+                    if out:
                         try:
-                            cfg[xx[0]] = int(xx[1])     # append int to dict
+                            cfg[out.group(1)] = int(out.group(2))   # append int to dict
                         except:
-                            cfg[xx[0]] = xx[1]          # append string to dict
-                        logging.warning ("JAMed {} = {}".format(xx[0], xx[1]))
-                    else: logging.warning ("JAM error on line {}.  Line skipped.".format(xx))
-        if os.path.exists(progdir + '/JAMed'): os.remove(progdir + '/JAMed')
-        os.rename (progdir + '/JAM', progdir + '/JAMed')
+                            cfg[out.group(1)] = out.group(2)        # append string to dict
+                        logging.warning ("JAMed {} = {}".format(out.group(1), cfg[out.group(1)]))
+                    else: logging.warning ("JAM error on line {}.  Line skipped.".format(line))
+        if os.path.exists(progdir + 'JAMed'): os.remove(progdir + 'JAMed')
+        os.rename (progdir + 'JAM', progdir + 'JAMed')
 
     if 'LoggingLevel' in cfg:                           # LoggingLevel from config file sets the following log level
         ll = cfg['LoggingLevel']
         logging.info ('Logging level set to <{}>'.format(ll))
         logging.getLogger().setLevel(ll)
-    else:  logging.getLogger().setLevel(30)             # INFO level is default
+    # else:  logging.getLogger().setLevel(30)             # INFO level is default
 
 
 def getcfg(param, default=None):
@@ -315,7 +328,7 @@ if __name__ == '__main__':
     setuplogging(logfile= 'testlogfile.txt')
     loadconfig (cfgfile='testcfg.cfg', cfgloglevel=10)
 
-    # # Tests for loadConfig, getcfg
+    # # Tests for loadconfig, getcfg
     # for key in cfg:
     #     print ("{:>15} = {}".format(key, cfg[key]))
 

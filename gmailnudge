@@ -1,30 +1,35 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Stimulate GMail to pull mail from the remote email host more often.
 Typically run every 5 minutes by a cron job:
  */5  *  *  *  *  cd /<path to script dir>/ && ./gmailnudge.py >> log.txt 2>&1
 Set up a filter in GMail to delete these messages.
 """
-__version__ = "v0.2 200426"
+__version__ = "V0.3 201028"
 
 #==========================================================
 #
-#  Chris Nelson, January 2018-2020
+#  Chris Nelson, 2018-2020
 #
-# 190319 v0.2  Added NudgeText config param
-# 180521 v0.1  New
+# V0.3 201028  Bug fix that required cwd == script dir.  Requires Python3.
+# V0.2 190319  Added NudgeText config param
+# V0.1 180521  New
 #
 # Changes pending
 #   
 #==========================================================
 
 import sys
-sys.path.append('../funcs3')    # Useful if funcs3 is placed elsewhere
+import os.path
+
+CONFIG_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'gmailnudge.cfg')
+
+sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../funcs3/'))   # Useful if funcs3 is placed elsewhere
 from funcs3 import *
 
 setuplogging()
 
 def main():
-    loadconfig(cfgfile = 'gmailnudge.cfg')
+    loadconfig(CONFIG_FILE)
 
     # Set up GMail rule to delete messages with subject = the NudgeText in config file.
     snd_email (subj=getcfg('NudgeText'), body="Don't care", to='EmailTo')
