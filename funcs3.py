@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Funcs (version 3)
+"""Funcs (gen 3)
 A collection of support funcs for simplifying writing basic tool scripts.
 
 Functions:
-    setuplogging             - Set up default logger 
+    setuplogging             - Set up default logger
+    funcs3_min_version_check - Checker for funcs3 module min version
     loadconfig, JAM, getcfg  - Config file handlers
     requestlock, releaselock - Cross-tool/process safety handshake
     snd_notif, snd_email     - Send text message and email messages
@@ -18,12 +19,13 @@ Globals:
         from a different pwd, such as when running from cron.
 """
 
-__func3_version__ = "V0.4 201028"
+funcs3_version = "V0.5 201203"
 
 #==========================================================
 #
 #  Chris Nelson, 2018-2020
 #
+# V0.5 201203  Passing None to setuplogging logfile directs output to stdout.  Added funcs3_min_version_check().
 # V0.4 201028  Reworked loadconfig & JAM with re to support ':' and '=' delimiters.
 #   loadconfig may be re-called and will re-load if the config file mod time has changed.
 #   Added '/' to progdir.  Requires Python3.
@@ -52,6 +54,8 @@ cfg = {}
 progdir = os.path.dirname(os.path.realpath(__main__.__file__)) + "/"
 config_epoch = 0
 
+
+# ***** Logging setup *****
 def setuplogging (logfile= 'log.txt'):
     """Set up logging.
 
@@ -60,14 +64,30 @@ def setuplogging (logfile= 'log.txt'):
         The default log file is <main file path>/log.txt.
         Absolute or relative path (from the main program directory) may
         be specified.
+        Passing None causes output to bge sent to stdout.
     """
 
-    if os.path.isabs(logfile):  logpath = logfile
-    else:                       logpath = progdir + logfile
+    if logfile == None:
+        logging.basicConfig(format='%(message)s')
+    else:
+        if os.path.isabs(logfile):  logpath = logfile
+        else:                       logpath = progdir + logfile
+        logging.basicConfig(filename=logpath, format='%(asctime)s/%(module)s/%(funcName)s/%(levelname)s:  %(message)s')
 
-    logging.basicConfig(filename=logpath,
-        format='%(asctime)s/%(module)s/%(funcName)s/%(levelname)s:  %(message)s')
 
+# ***** funcs3 minimum version checker *****
+def funcs3_min_version_check(min_version):
+    """Compare current funcs3 module version against passed in minimum expected version.
+    Return True if current version >= passed in min version.
+    """
+    current_version = float(funcs3_version[1:4])
+    if current_version >= min_version:
+        return True
+    else:
+        return False
+
+
+# ***** Config file functions loadconfig, JAM, getcfg *****
 cfgline = re.compile(r"([\w]+)[\s=:]+(.*)")
 def loadconfig(cfgfile= 'config.cfg', cfgloglevel= 30):
     """Read config file into dictionary cfg.
@@ -176,6 +196,7 @@ def getcfg(param, default=None):
         sys.exit(1)
 
 
+# ***** Lock file management functions *****
 LOCKFILE_DEFAULT = "funcs3_LOCK"
 def requestlock(caller, lockfile=LOCKFILE_DEFAULT):
     """Lock file request.
@@ -218,6 +239,7 @@ def releaselock(lockfile=LOCKFILE_DEFAULT):
         return -1
 
 
+#***** Notification and email functions *****
 def snd_notif(subj='Notification message', msg='', log=False):
     """Send a text message using the cfg NotifList from the config file.
 
@@ -327,6 +349,13 @@ if __name__ == '__main__':
 
     setuplogging(logfile= 'testlogfile.txt')
     loadconfig (cfgfile='testcfg.cfg', cfgloglevel=10)
+
+    # # Tests for funcs3_min_version_check
+    # if not funcs3_min_version_check(2.0):
+    #     print(f"ERROR:  funcs3 module must be at least version 2.0.  Found <{funcs3_version}>.")
+    # if funcs3_min_version_check(0.5):
+    #     print(f"funcs3_min_version_check passes.  Found <{funcs3_version}>.")
+
 
     # # Tests for loadconfig, getcfg
     # for key in cfg:
