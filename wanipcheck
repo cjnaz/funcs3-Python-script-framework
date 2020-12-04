@@ -4,12 +4,13 @@ Intended to be run every hour by a cron job:
   01  *  *  *  *  <path to script>/wanipcheck >> log.txt 2>&1
 """
 
-__version__ = "V0.4 201028"
+__version__ = "V0.5 201203"
 
 #==========================================================
 #
 #  Chris Nelson, 2018-2020
 #
+# V0.5 201203  funcs3_min_version_check demo.
 # V0.4 201028  Bug fix that required cwd == script dir.  Requires Python3.7 minimum (subprocess capture_output).
 # V0.3 200426  Changed to curl, updated funcs3 module.
 # V0.2 190319  Genericized EmailTo, fixed Python 3x compatibility.
@@ -29,6 +30,8 @@ CONFIG_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'WANIPCh
 
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../funcs3/'))   # Useful if funcs3 is placed elsewhere
 from funcs3 import *
+funcs3_min_version = 0.5
+
 
 setuplogging()
 
@@ -63,4 +66,11 @@ def main():
     else: logging.info ("No change")
 
 
-if __name__ == '__main__': main()
+if __name__ == '__main__':
+
+    if not funcs3_min_version_check(funcs3_min_version):
+        logging.error(f"ERROR:  funcs3 module must be at least version {funcs3_min_version}.  Found <{funcs3_version}>.")
+        sys.exit(1)
+
+    
+    main()
