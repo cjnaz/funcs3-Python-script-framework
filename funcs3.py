@@ -21,12 +21,13 @@ Globals:
         from a different pwd, such as when running from cron.
 """
 
-funcs3_version = "V0.6 210512"
+funcs3_version = "V0.7 210523"
 
 #==========================================================
 #
 #  Chris Nelson, 2018-2020
 #
+# V0.7 210523  loadconfig flush_on_reload switch added.
 # V0.6 210512  loadconfig returns True when cfg has been (re)loaded.  loadconfig supports import, flush and booleans.
 #   ConfigError and SndEmailError exceptions now raised rather than terminating on critical error.
 # V0.5 201203  Passing None to setuplogging logfile directs output to stdout.  Added funcs3_min_version_check().
@@ -139,10 +140,16 @@ def __loadline__(line):     # Common code for loadconfig and JAM
                 else:
                     cfg[key] = rol          # add string to dict
             logging.debug (f"Loaded {key} = <{cfg[key]}>  ({type(cfg[key])})")
-        else: logging.warning (f"loadconfig/JAM error on line <{line}>.  Line skipped.")
+        else: logging.warning (f"loadconfig:  Error on line <{line}>.  Line skipped.")
 
 
-def loadconfig(cfgfile='config.cfg', cfgloglevel=30, cfg_flush=False, isimport=False):
+def __reset_logginglevel__():
+    ll = getcfg("LoggingLevel", 30)     # Default logginglevel is WARNING
+    logging.getLogger().setLevel(ll)
+    logging.debug (f"loadconfig:  Logging level set to <{ll}>")
+
+
+def loadconfig(cfgfile='config.cfg', cfgloglevel=30, cfg_flush=False, isimport=False, flush_on_reload=False):
     """Read config file into dictionary cfg.
 
     Params:
@@ -152,6 +159,7 @@ def loadconfig(cfgfile='config.cfg', cfgloglevel=30, cfg_flush=False, isimport=F
     cfgloglevel -- sets logging level during config file loading. Default is 30:WARNING.
     cfg_flush   -- Purges / flushes the cfg dictionary before forced reloading.
     isimport    -- Internally set True when handling imports.
+    flush_on_reload -- Initially flush/purge/empty cfg when reloading a changed config file
 
     Config file keys will be loaded with this precedence based on the rest-of-line:
         Int    - The first attempt is to try int(rest-of-line)
@@ -160,13 +168,15 @@ def loadconfig(cfgfile='config.cfg', cfgloglevel=30, cfg_flush=False, isimport=F
     rest-of-line cannot be blank or the line is skipped with a logged warning message
 
     Notes:
-    Logging levels: 10:DEBUG, 20:INFO, 30:WARNING, 40:ERROR, 50:CRITICAL
+    Logging module levels: 10:DEBUG, 20:INFO, 30:WARNING, 40:ERROR, 50:CRITICAL
     Optional LoggingLevel in the config file will set the logging level after
     the config has been loaded.  If not specified in the config file, then 
     the logging level is set to 30:WARNING after loading the config file.
 
     loadconfig may be called periodically by the main script.  loadconfig detects
     if the config file modification time has changed and reloads the file, as needed.
+    The flush_on_reload flag may also be set to force a purge of cfg before the reload.
+    This is useful to eliminate keys in cfg that have been removed from the config file.
 
     Returns True if cfg has been (re)loaded, and False if not reloaded, so that the
     caller can do processing only if the cfg is freshly loaded.
@@ -177,8 +187,8 @@ def loadconfig(cfgfile='config.cfg', cfgloglevel=30, cfg_flush=False, isimport=F
     logging.getLogger().setLevel(cfgloglevel)
 
     if cfg_flush:
-        logging.debug("loadconfig:  cfg dictionary flushed")
-        cfg = {}
+        logging.debug("loadconfig:  cfg dictionary flushed (forced reload)")
+        cfg.clear()
         config_timestamp = 0
 
     if os.path.isabs(cfgfile):
@@ -192,11 +202,17 @@ def loadconfig(cfgfile='config.cfg', cfgloglevel=30, cfg_flush=False, isimport=F
         raise ConfigError (_msg)
 
     try:
-        xx = os.path.getmtime(cfgfile)
-        if config_timestamp == xx:
-            logging.debug("loadconfig:  reload skipped")
-            return False
-        config_timestamp = xx
+        if not isimport:        # Top level config file
+            xx = os.path.getmtime(cfgfile)
+            if config_timestamp == xx:
+                logging.debug("loadconfig:  Reload skipped")
+                __reset_logginglevel__()    # Must reset due to loadconfig call changing it
+                return False
+            config_timestamp = xx
+
+            if flush_on_reload:
+                cfg.clear()
+                logging.info (f"loadconfig:  cfg dictionary flushed (flush_on_reload due to changed config file)")
 
         logging.info (f"Loading {config}")
         with io.open(config, encoding='utf8') as ifile:
@@ -219,15 +235,11 @@ def loadconfig(cfgfile='config.cfg', cfgloglevel=30, cfg_flush=False, isimport=F
 
     if not isimport:                    # Operations only for a top-level call
         if getcfg("DontEmail", False):
-            logging.info ('DontEmail is set - Emails and Notifications will NOT be sent')
+            logging.info ('loadconfig:  DontEmail is set - Emails and Notifications will NOT be sent')
         elif getcfg("DontNotif", False):
-            logging.info ('DontNotif is set - Notifications will NOT be sent')
+            logging.info ('loadconfig:  DontNotif is set - Notifications will NOT be sent')
 
-        if 'LoggingLevel' in cfg:
-            ll = cfg['LoggingLevel']
-            logging.info (f"Logging level set to <{ll}>")
-            logging.getLogger().setLevel(ll)
-        else:  logging.getLogger().setLevel(30)
+        __reset_logginglevel__()
 
     return True
 
@@ -236,7 +248,7 @@ def JAM():
     """Jam new values into cfg from the file 'JAM' in the program directory,
     if exists.  This allows for changing config values on a running program.
     Use getcfg or direct references to cfg[] for each access, rather than
-    storing a local value, else newly jammed values wont be used.
+    getting a local value, else newly jammed values wont be used.
     After the new values are loaded the JAM file is renamed to JAMed.
     The logging level may be changed by setting/changing LoggingLevel.
 
@@ -259,11 +271,7 @@ def JAM():
         logging.error (f"ConfigError:  {_msg}")
         raise ConfigError (_msg) from None
 
-    if 'LoggingLevel' in cfg:
-        ll = cfg['LoggingLevel']
-        logging.info (f"Logging level set to <{ll}>")
-        logging.getLogger().setLevel(ll)
-    else:  logging.getLogger().setLevel(30)
+    __reset_logginglevel__()
 
 
 def getcfg(param, default=None):
@@ -345,16 +353,17 @@ def snd_notif(subj='Notification message', msg='', log=False):
     """
 
     xx = 0
-    if getcfg('DontNotif', default=False):
+    if getcfg('DontNotif', default=False)  or  getcfg('DontEmail', default=False):
         if log:
-            logging.warning (f"Notification not sent <{subj}> <{msg}>")
+            logging.warning (f"Notification NOT sent <{subj}> <{msg}>")
         else:
-            logging.debug (f"Notification not sent <{subj}> <{msg}>")
+            logging.debug (f"Notification NOT sent <{subj}> <{msg}>")
         return 0
 
     xx = snd_email (subj=subj, body=msg, to='NotifList')
     if log:
-        logging.warning (f"Notification sent <{subj}> <{msg}>")
+        # logging.warning (f"Notification sent <{subj}> <{msg}>")
+        logging.info (f"Notification sent <{subj}> <{msg}>")
     else:
         logging.debug (f"Notification sent <{subj}> <{msg}>")
     return xx
@@ -391,9 +400,9 @@ def snd_email(subj='', body='', filename='', to='', log=False):
 
     if getcfg('DontEmail', default=False):
         if log:
-            logging.warning (f"Email not sent <{subj}>")
+            logging.warning (f"Email NOT sent <{subj}>")
         else:
-            logging.debug (f"Email not sent <{subj}>")
+            logging.debug (f"Email NOT sent <{subj}>")
         return 0
 
     if not (body == ''):
@@ -443,7 +452,8 @@ def snd_email(subj='', body='', filename='', to='', log=False):
         s.quit()
 
         if log:
-            logging.warning (f"Email sent <{subj}>")
+            # logging.warning (f"Email sent <{subj}>")
+            logging.info (f"Email sent <{subj}>")
         else:
             logging.debug (f"Email sent <{subj}>")
     except Exception as e:
@@ -461,7 +471,7 @@ if __name__ == '__main__':
     # # Tests for funcs3_min_version_check
     # if not funcs3_min_version_check(2.0):
     #     print(f"ERROR:  funcs3 module must be at least version 2.0.  Found <{funcs3_version}>.")
-    # if funcs3_min_version_check(0.6):
+    # if funcs3_min_version_check(0.7):
     #     print(f"funcs3_min_version_check passes.  Found <{funcs3_version}>.")
 
 
@@ -473,7 +483,7 @@ if __name__ == '__main__':
     # # loadconfig("nosuchfile.txt")      # This one exercises untrapped error caught by Python
 
     # for key in cfg:
-    #     print (f"{key:>20} = {cfg[key]}")
+    #     print (f"{key:>20} = {cfg[key]} -- {type(cfg[key])}")
 
     # print (f"Testing getcfg - Not in cfg with default: <{getcfg('NotInCfg', 'My Default Value')}>")
     # try:
@@ -482,6 +492,17 @@ if __name__ == '__main__':
     #     print (e)
     # # getcfg('NotInCfg-NoDef')          # This one exercises untrapped error caught by Python
 
+    # # Test flush_on_reload
+    # from pathlib import Path
+    # cfg["dummy"] = True
+    # print (f"var dummy in cfg: {getcfg('dummy', False)}")
+    # loadconfig(cfgfile='testcfg.cfg', flush_on_reload=True, cfgloglevel=10)
+    # print (f"var dummy in cfg: {getcfg('dummy', False)}")
+    # Path('testcfg.cfg').touch()
+    # loadconfig(cfgfile='testcfg.cfg', flush_on_reload=True, cfgloglevel=10)
+    # print (f"var dummy in cfg: {getcfg('dummy', False)}")
+    # loadconfig(cfgfile='testcfg.cfg', cfg_flush=True, cfgloglevel=10)
+    # loadconfig(cfgfile='testcfg.cfg', cfgloglevel=10)
 
     # # Tests for JAM
     # with io.open("JAM", 'w') as ofile:
@@ -495,7 +516,7 @@ if __name__ == '__main__':
     # print (f"JammedBool = <{getcfg('JammedBool')}>, {type(getcfg('JammedBool'))}")
 
 
-    # Tests for sndNotif and snd_email
+    # # Tests for sndNotif and snd_email
     # cfg['DontEmail'] = True
     # cfg['DontNotif'] = True
     # snd_email (subj="Test email with body", body="To be, or not to be...", to="EmailTo")

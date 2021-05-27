@@ -55,9 +55,10 @@ if the var does not exist (maybe a typo?), and also supports a default mechanism
 
 - One nice thing about the config file reader is that integer values in the config file are stored as integers in the cfg dictionary, True and False values (case insensitive) are stored as booleans, and 
 all other entries are stored as strings.  This avoids having to clutter the script with explicit type casting.  If the config file has 
-`xyz 5` then the script can be cleanly written as `if getcfg('xyz') > 3: ...`, or `print cfg['xyz'] * 10`. 
+`xyz 5` then the script can be cleanly written as `if getcfg('xyz') > 3: ...`, or `print (cfg['xyz'] * 10)`. 
 Similarly, `MyBool True` in the config file allows `if getcfg('MyBool'):` to be written.
-- New in V0.6, loadconfig supports `Import` (keyword is case insensitive).  The listed file is imported as if the vars were in the main config file.  Nested imports are allowed.  A prime usage of `import` is to place email server credentials in your home directory with user-only readability.  
+- New in V0.6, loadconfig supports `Import` (keyword is case insensitive).  The listed file is imported as if the vars were in the main config file.  Nested imports are allowed.  A prime usage of `import` is to all placing email server credentials in your home directory with user-only readability.  
+- New in V0.7 is the `flush_on_reload` flag which forces dictionary `cfg` to be cleared/purged before reloading the config file.  This allows tool to efficiently and dynamically track changes to the config file while the tool is looping, such as for a service running forever in a loop.  See [lanmonitor](https://github.com/cjnaz/lanmonitor) for a working example.  Prior to V0.7 the config reload was only additive - a key could not be removed by commenting it out in the config file.
 - The `JAM` function allows for changing values within the cfg dictionary on-the-fly while the script is running.  JAM is useful for 
 tools/scripts that do not terminate, yet you want to make some adjustments, such as changing the logging level.  In order for new values to be 
 jammed and used within the script, `JAM()` must be called periodically, and accesses to the vars need to reference the dictionary rather
@@ -76,7 +77,7 @@ Features
 - `snd_email` and `snd_notif` provide nice basic wrappers around Python's smtplib and use setup info from the config file.  The send-to targets can be multiple
 email addresses by listing more than one with white space separation in the config file.  
 - `snd_notif` is targeted to be used with mobile provider 
-email-to-text-message bridge addresses, such as Verizon's xxxyyyzzzz@vzwpix.com.  wanipcheck is a good example of simply sending a message
+email-to-text-message bridge addresses, such as Verizon's xxxyyyzzzz@vzwpix.com.  [wanipcheck](wanipcheck) demonstrates sending a message
 out when some circumstance comes up.  
 Suggested application:  Write a script that checks status on critical processes on your server, and if anything
 is wrong then send out a notification.  (Wait, rather than writing this, see [lanmonitor](https://github.com/cjnaz/lanmonitor).)
@@ -97,6 +98,7 @@ run it again, which may create a real mess.  The lock file mechanism is used in 
 
 ` `
 # Revision history
+- V0.7 210523  loadconfig flush_on_reload switch added.
 - V0.6 210512  loadconfig returns True when cfg has been (re)loaded.  loadconfig supports import, flush and booleans.
 ConfigError and SndEmailError exceptions now raised rather than terminating on critical error.
 - V0.5 201203 - Passing None to setuplogging logfile directs output to stdout.  Added funcs3_min_version_check().

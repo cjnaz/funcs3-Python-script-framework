@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Check WAN IP address and if it has changed then send me an email
-Intended to be run every hour by a cron job:
-  01  *  *  *  *  <path to script>/wanipcheck >> log.txt 2>&1
+See wanstatus for a more complete implementation - https://github.com/cjnaz/wanstatus
 """
 
 __version__ = "V0.6 210512"
@@ -10,7 +9,7 @@ __version__ = "V0.6 210512"
 #
 #  Chris Nelson, 2018-2020
 #
-# V0.6 210512  Using import email creds, requires funcs3 0.6
+# V0.6 210512  Using import email creds, requires funcs3 0.6 min
 # V0.5 201203  funcs3_min_version_check demo.
 # V0.4 201028  Bug fix that required cwd == script dir.  Requires Python3.7 minimum (subprocess capture_output).
 # V0.3 200426  Changed to curl, updated funcs3 module.
