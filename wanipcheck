@@ -2,19 +2,13 @@
 """Check WAN IP address and if it has changed then send me an email
 See wanstatus for a more complete implementation - https://github.com/cjnaz/wanstatus
 """
-
-__version__ = "V0.6 210512"
+__version__ = "V1.0 220131"
 
 #==========================================================
 #
-#  Chris Nelson, 2018-2020
+#  Chris Nelson, 2018-2022
 #
-# V0.6 210512  Using import email creds, requires funcs3 0.6 min
-# V0.5 201203  funcs3_min_version_check demo.
-# V0.4 201028  Bug fix that required cwd == script dir.  Requires Python3.7 minimum (subprocess capture_output).
-# V0.3 200426  Changed to curl, updated funcs3 module.
-# V0.2 190319  Genericized EmailTo, fixed Python 3x compatibility.
-# V0.1 180521  New
+# V1.0 220131  New for funcs3 V1.0
 #
 # Changes pending
 #   
@@ -25,52 +19,48 @@ import subprocess
 import sys
 import os.path
 
+sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../funcs3/'))   # Useful if funcs3 is placed elsewhere
+from funcs3 import PROGDIR, loadconfig, getcfg, logging, snd_notif, snd_email, funcs3_min_version_check, funcs3_version
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'WANIPCheck.cfg')
+FUNCS3_MIN_VERSION = 1.0
 
-sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../funcs3/'))   # Useful if funcs3 is placed elsewhere
-from funcs3 import *
-funcs3_min_version = 0.6
-
-
-setuplogging()
 
 def main():
     loadconfig(CONFIG_FILE)
 
     try:
-        WANip = subprocess.run(["curl", 'https://ipapi.co/ip/'], capture_output=True, text=True).stdout # .split("\n")
+        WANip = subprocess.run(["curl", getcfg("WanIpWebpage")], capture_output=True, text=True).stdout
     except Exception as e:
-        logging.error ("Getting the WAN IP failed: <{}>".format(e))
+        logging.error (f"Getting the WAN IP failed: <{e}>")
         sys.exit (1)
 
-    WANfile = progdir + getcfg('WanIpFile')
+    WANfile = PROGDIR + getcfg('WanIpFile')
 
     if not os.path.exists(WANfile):
         with open(WANfile, 'w') as ofile:
             ofile.write (WANip)
-            logging.warning ("Created {} with IP address {}".format(WANfile, WANip))
+            logging.warning (f"Created {WANfile} with IP address {WANip}")
         sys.exit ()
 
     with open(WANfile) as ifile:
         SavedWANip = ifile.readline()
 
     if WANip != SavedWANip:
-        message = "Prior WAN IP: <{}>. Current WAN IP: <{}>".format (SavedWANip, WANip)
+        message = f"Prior WAN IP: <{SavedWANip}>. Current WAN IP: <{WANip}>"
         subject = "NOTICE:  HOME WAN IP CHANGED"
         snd_notif (subj=subject, msg=message, log=True)
         snd_email (subj=subject, body=message, to='EmailTo')
 
         with open(WANfile, 'w') as ofile:
             ofile.write (WANip)
-    else: logging.info ("No change")
+    else: logging.info (f"No change - WAN IP is <{WANip}>")
 
 
 if __name__ == '__main__':
 
-    if not funcs3_min_version_check(funcs3_min_version):
-        logging.error(f"ERROR:  funcs3 module must be at least version {funcs3_min_version}.  Found <{funcs3_version}>.")
+    if not funcs3_min_version_check(FUNCS3_MIN_VERSION):
+        logging.error(f"ERROR:  funcs3 module must be at least version {FUNCS3_MIN_VERSION}.  Found <{funcs3_version}>.")
         sys.exit(1)
-
     
     main()
