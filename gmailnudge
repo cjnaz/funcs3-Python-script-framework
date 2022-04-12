@@ -4,15 +4,13 @@ Typically run every 5 minutes by a cron job:
  */5  *  *  *  *  cd /<path to script dir>/ && ./gmailnudge.py >> log.txt 2>&1
 Set up a filter in GMail to delete these messages.
 """
-__version__ = "V0.3 201028"
+__version__ = "V1.0 220131"
 
 #==========================================================
 #
-#  Chris Nelson, 2018-2020
+#  Chris Nelson, 2018-2022
 #
-# V0.3 201028  Bug fix that required cwd == script dir.  Requires Python3.
-# V0.2 190319  Added NudgeText config param
-# V0.1 180521  New
+# V1.0 220131  New for funcs3 V1.0
 #
 # Changes pending
 #   
@@ -22,19 +20,24 @@ import sys
 import os.path
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'gmailnudge.cfg')
+FUNCS3_MIN_VERSION = 1.0
 
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../funcs3/'))   # Useful if funcs3 is placed elsewhere
-from funcs3 import *
-
-setuplogging()
+from funcs3 import SndEmailError, loadconfig, getcfg, logging, snd_email
 
 def main():
+
     loadconfig(CONFIG_FILE)
 
     # Set up GMail rule to delete messages with subject = the NudgeText in config file.
-    snd_email (subj=getcfg('NudgeText'), body="Don't care", to='EmailTo')
+    try:
+        snd_email (subj=getcfg('NudgeText'), body="Don't care", to='EmailTo', log=True)
+        logging.info ('Nudge message sent')         # This log is redundant if log=True on the snd_email call
+    except SndEmailError as e:
+        logging.error(f"  {e}")
+    # except Exception as e:
+    #     logging.error(f"Catchall error:\n  {e}")
 
-    logging.info ('Nudge message sent')
 
-
-if __name__ == '__main__': main()
+if __name__ == '__main__':
+    main()
