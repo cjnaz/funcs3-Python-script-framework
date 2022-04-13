@@ -2,6 +2,8 @@
 
 funcs gen3 is a collection of functions for building Python tools and scripts.  This code is supported only on Python 3.
 
+A companion template script file is provided, along with template.cfg and template.service files.  I use these as the 
+starter files for new tools.
 
 ` `
 # gmailnudge demo code
